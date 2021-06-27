@@ -3,6 +3,7 @@ CS 229 Machine Learning
 Question: Reinforcement Learning - The Inverted Pendulum
 """
 from __future__ import division, print_function
+from typing import ValuesView
 from env import CartPole, Physics
 import matplotlib.pyplot as plt
 import numpy as np
@@ -108,12 +109,13 @@ def initialize_mdp_data(num_states):
 
     return {
         'transition_counts': transition_counts,
-        'transition_probs': transition_probs,
+        'transition_probs': transition_probs, 
         'reward_counts': reward_counts,
         'reward': reward,
         'value': value,
         'num_states': num_states,
     }
+
 
 def choose_action(state, mdp_data):
     """
@@ -129,6 +131,17 @@ def choose_action(state, mdp_data):
     """
 
     # *** START CODE HERE ***
+    transitionProbs = mdp_data['transition_probs']
+    value = mdp_data['value']
+
+    probVal = transitionProbs[state].T @ value
+
+    if (probVal[0] != probVal[1]):
+        action = np.argmax(probVal)
+    else:
+        action = np.random.randint(2)
+
+    return action
     # *** END CODE HERE ***
 
 def update_mdp_transition_counts_reward_counts(mdp_data, state, action, new_state, reward):
@@ -153,6 +166,15 @@ def update_mdp_transition_counts_reward_counts(mdp_data, state, action, new_stat
     """
 
     # *** START CODE HERE ***
+    transitionCounts = mdp_data['transition_counts']
+    rewardCounts = mdp_data['reward_counts']
+
+    transitionCounts[state][new_state][action] += 1
+
+    if (reward == -1):
+        rewardCounts[new_state][0] += 1
+        
+    rewardCounts[new_state][1] += 1   
     # *** END CODE HERE ***
 
     # This function does not return anything
@@ -174,8 +196,26 @@ def update_mdp_transition_probs_reward(mdp_data):
         Nothing
 
     """
-
+    # number of times action a is taken in state s and got to s' / number of times action a was taken in state s
     # *** START CODE HERE ***
+    transitionCounts = mdp_data['transition_counts']
+    transitionProbs = mdp_data['transition_probs']
+    rewardCounts = mdp_data['reward_counts']
+    numStates = mdp_data['num_states']
+    reward = mdp_data['reward']
+    
+    numCounts = transitionCounts.sum(axis = 1) #take sum over all s'
+
+    for i in range(numStates):
+        sumCount = rewardCounts[i, 1]
+        if sumCount != 0:
+            reward[i] = -(rewardCounts[i][0] / sumCount)
+
+    for i in range(numStates):
+        for j in range(numStates):
+            for a in range(2):
+                if (numCounts[i, a] != 0):
+                    transitionProbs[i, j, a] = transitionCounts[i, j, a] / numCounts[i, a]
     # *** END CODE HERE ***
 
     # This function does not return anything
@@ -203,6 +243,20 @@ def update_mdp_value(mdp_data, tolerance, gamma):
     """
 
     # *** START CODE HERE ***
+    iters = 0
+    transition_probs = mdp_data['transition_probs']
+
+    while True:
+        iters += 1
+
+        value = mdp_data['value']
+        new_value = mdp_data['reward'] + gamma * value.dot(transition_probs).max(axis=1)
+        mdp_data['value'] = new_value
+
+        if np.max(np.abs(value - new_value)) < tolerance:
+            break
+
+    return iters==1
     # *** END CODE HERE ***
 
 def main(plot=True):
@@ -268,7 +322,7 @@ def main(plot=True):
 
         # Get the state number corresponding to new state vector
         new_state = cart_pole.get_state(state_tuple)
-        # if display_started == 1:
+        #if display_started == 1:
         #     cart_pole.show_cart(state_tuple, pause_time)
 
         # reward function to use - do not change this!
@@ -301,6 +355,7 @@ def main(plot=True):
             print('[INFO] Failure number {}'.format(num_failures))
             time_steps_to_failure.append(time - time_at_start_of_current_trial)
             # time_steps_to_failure[num_failures] = time - time_at_start_of_current_trial
+            print( time - time_at_start_of_current_trial)
             time_at_start_of_current_trial = time
 
             if time_steps_to_failure[num_failures - 1] > min_trial_length_to_start_display:
